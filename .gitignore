@@ -1,0 +1,34 @@
+# 環境変数・シークレット
+.env
+credentials/client_secrets.json
+credentials/token.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# RAGキャッシュ
+rag/cache/*.json
+rag/cache/*.pkl
+rag/cache/storage/
+
+# 生成物
+storage/scripts/*.md
+storage/audio/*.mp3
+storage/audio/*.wav
+storage/videos/*.mp4
+storage/logs/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store

@@ -1,0 +1,15 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+storage/scripts/*.md
+storage/audio/*.mp3
+storage/audio/*.wav
+storage/videos/*.mp4
+storage/logs/*.log
+rag/cache/
+credentials/
+.DS_Store

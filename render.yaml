@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: youtube-agent
+    runtime: docker
+    plan: starter
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: NOTION_API_KEY
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
+      - key: NOTION_LOG_DATABASE_ID
+        sync: false
+      - key: NOTION_CONTENT_PAGE_ID
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+      - key: YOUTUBE_DATA_API_KEY
+        sync: false
+      - key: TTS_PROVIDER
+        value: elevenlabs
