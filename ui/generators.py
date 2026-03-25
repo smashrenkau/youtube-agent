@@ -113,7 +113,7 @@ def generate_script(title: str, folder: ContentFolder) -> str:
     return agent._call_claude(prompt, max_tokens=4096)
 
 
-def generate_slides(script: str, title: str) -> list[dict]:
+def generate_slides(script: str, title: str, folder: ContentFolder | None = None) -> list[dict]:
     """台本からスライドを生成してPNGパスのリストを返す。"""
     from slides.slide_agent import SlideGeneratorAgent
 
@@ -121,5 +121,15 @@ def generate_slides(script: str, title: str) -> list[dict]:
     output_dir = Path("storage/slides") / safe_title
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # フォルダのコンテキストからスライド仕様書を抽出
+    slide_spec = None
+    if folder:
+        context = folder.get_context()
+        import re
+        match = re.search(r"##\s*スライド仕様書\n(.*?)(?=\n##\s|\Z)", context, re.DOTALL)
+        if match:
+            slide_spec = match.group(1).strip()
+            logger.info("Notionのスライド仕様書を使用")
+
     agent = SlideGeneratorAgent()
-    return agent.generate_slides(script, output_dir)
+    return agent.generate_slides(script, output_dir, slide_spec=slide_spec)

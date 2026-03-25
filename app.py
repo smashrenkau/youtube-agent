@@ -141,7 +141,7 @@ if st.session_state.scripts:
             if slide_btn:
                 with st.spinner(f"スライド生成中（約8分）... {title}"):
                     from ui.generators import generate_slides
-                    slides = generate_slides(edited_script, title)
+                    slides = generate_slides(edited_script, title, folder=selected_folder)
                     st.session_state.slides[title] = slides
 
             # スライドプレビュー
