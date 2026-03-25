@@ -20,8 +20,9 @@ st.set_page_config(
 def _init_state() -> None:
     defaults = {
         "titles": [],
-        "scripts": {},   # title -> script str
-        "slides": {},    # title -> list[dict]
+        "scripts": {},          # title -> script str
+        "slides": {},           # title -> list[dict]
+        "title_page_ids": {},   # title -> Notion page_id
         "generating_titles": False,
     }
     for k, v in defaults.items():
@@ -54,6 +55,7 @@ with st.sidebar:
         st.session_state.titles = []
         st.session_state.scripts = {}
         st.session_state.slides = {}
+        st.session_state.title_page_ids = {}
         st.session_state.generating_titles = True
 
     st.divider()
@@ -82,10 +84,16 @@ st.title("YouTube コンテンツ生成")
 
 if st.session_state.generating_titles:
     with st.spinner(f"タイトルを {num_titles} 本生成中..."):
-        from ui.generators import generate_titles
+        from ui.generators import generate_titles, save_titles_to_notion
         titles = generate_titles(selected_folder, num_titles)
         st.session_state.titles = titles
+
+        # Notionに自動保存
+        page_ids = save_titles_to_notion(titles)
+        st.session_state.title_page_ids = page_ids
         st.session_state.generating_titles = False
+
+    st.toast(f"✅ タイトル {len(titles)} 件をNotionに保存しました", icon="✅")
 
 # ──────────────────────────────────────────
 # タイトル一覧 + チェックボックス
@@ -103,12 +111,17 @@ if st.session_state.titles:
 
     if selected_titles:
         if st.button(f"台本生成（{len(selected_titles)}本）", type="primary"):
-            from ui.generators import generate_script
+            from ui.generators import generate_script, save_script_to_notion
             for title in selected_titles:
                 if title not in st.session_state.scripts:
                     with st.spinner(f"台本生成中: {title}"):
                         script = generate_script(title, selected_folder)
                         st.session_state.scripts[title] = script
+
+                        # Notionに自動保存
+                        save_script_to_notion(title, script, st.session_state.title_page_ids)
+
+            st.toast(f"✅ 台本 {len(selected_titles)} 件をNotionに保存しました", icon="✅")
     else:
         st.info("台本を作成したいタイトルにチェックを入れてください。")
 
@@ -120,14 +133,12 @@ if st.session_state.scripts:
 
     for title, script in st.session_state.scripts.items():
         with st.expander(f"📝 {title}", expanded=True):
-            # 台本表示（編集可能）
             edited_script = st.text_area(
                 "台本（編集可能）",
                 value=script,
                 height=300,
                 key=f"script_area_{title}",
             )
-            # 編集内容を保存
             st.session_state.scripts[title] = edited_script
 
             col1, col2 = st.columns([1, 4])
@@ -140,9 +151,14 @@ if st.session_state.scripts:
 
             if slide_btn:
                 with st.spinner(f"スライド生成中（約8分）... {title}"):
-                    from ui.generators import generate_slides
+                    from ui.generators import generate_slides, save_slides_to_notion
                     slides = generate_slides(edited_script, title, folder=selected_folder)
                     st.session_state.slides[title] = slides
+
+                    # Notionに自動保存
+                    save_slides_to_notion(title, slides, st.session_state.title_page_ids)
+
+                st.toast(f"✅ スライドをNotionに保存しました", icon="✅")
 
             # スライドプレビュー
             if title in st.session_state.slides:

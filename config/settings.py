@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     notion_database_id: str
     notion_log_database_id: str = ""
     notion_content_page_id: str = ""   # コンテンツフォルダ管理ページ
+    notion_renkau_page_id: str = ""    # Renkauフォルダページ（生成物保存先）
 
     # TTS
     tts_provider: Literal["elevenlabs", "openai"] = "elevenlabs"
