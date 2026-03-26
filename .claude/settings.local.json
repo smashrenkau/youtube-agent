@@ -2,7 +2,26 @@
   "permissions": {
     "allow": [
       "Bash(source .venv/bin/activate)",
-      "Bash(python3 -c \":*)"
+      "Bash(python3 -c \":*)",
+      "Bash(.venv/bin/python scripts/update_notion_knowledge.py)",
+      "Skill(update-config)",
+      "Bash(jq:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | { read -r f; echo \"$f\" | grep -q 'content/renkau/.*\\.md$' && cd /Users/okugawakodai/Documents/youtube-agent && .venv/bin/python scripts/update_notion_knowledge.py; } 2>/dev/null || true",
+            "statusMessage": "Notionに同期中..."
+          }
+        ]
+      }
     ]
   }
 }

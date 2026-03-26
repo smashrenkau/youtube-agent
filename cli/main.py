@@ -48,7 +48,7 @@ def _build_retriever(rebuild: bool = False):  # type: ignore[no-untyped-def]
     settings = get_settings()
     loader = NotionLoader(
         api_key=settings.notion_api_key.get_secret_value(),
-        database_id=settings.notion_database_id,
+        knowledge_page_id=settings.notion_renkau_page_id,
     )
     builder = IndexBuilder(
         notion_loader=loader,
