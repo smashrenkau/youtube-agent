@@ -10,10 +10,18 @@ STORAGE_PAGE_NAME = "生成物"
 class NotionStorage:
     """タイトル・台本・スライドをNotionに自動保存する。"""
 
-    def __init__(self, api_key: str, renkau_page_id: str) -> None:
+    def __init__(self, api_key: str, renkau_page_id: str, parent_page_id: str = "") -> None:
+        """
+        Args:
+            api_key: Notion APIキー
+            renkau_page_id: Renkauルートページ（フォールバック用）
+            parent_page_id: 生成物の保存先親ページ（long/short動画ページ）。
+                            指定した場合はこのページ配下に「生成物」を探す/作る。
+        """
         from notion_client import Client
         self.client = Client(auth=api_key)
-        self.renkau_page_id = renkau_page_id.replace("-", "")
+        # parent_page_idが指定されていればそちらを優先
+        self.renkau_page_id = (parent_page_id or renkau_page_id).replace("-", "")
         self._storage_page_id: str | None = None
 
     # ──────────────────────────────────────────

@@ -81,9 +81,9 @@ class NotionContentReader:
 
     def get_page_keywords(self, page_text: str) -> list[str]:
         """ページテキストの「## キーワード」セクションからキーワードを抽出する。"""
-        # 「## キーワード」「## 検索キーワード」などのセクションを探す
+        # 「## キーワード」「## 検索キーワード」「## メインキーワード」などのセクションを探す
         match = re.search(
-            r"##\s*(?:検索)?キーワード[^\n]*\n(.*?)(?=\n##|\Z)",
+            r"##\s*(?:メイン|検索)?キーワード[^\n]*\n(.*?)(?=\n##|\Z)",
             page_text,
             re.DOTALL,
         )

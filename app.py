@@ -19,6 +19,7 @@ st.set_page_config(
 # ──────────────────────────────────────────
 def _init_state() -> None:
     defaults = {
+        "video_type": "long",       # "long" or "short"
         "titles": [],
         "scripts": {},          # title -> script str
         "slides": {},           # title -> list[dict]
@@ -37,7 +38,29 @@ _init_state()
 with st.sidebar:
     st.title("設定")
 
-    folders = ContentFolder.list_all()
+    # Long/Short切り替えラジオボタン
+    video_type_options = {"ロング動画 (Long)": "long", "ショート動画 (Short)": "short"}
+    selected_video_type_label = st.radio(
+        "動画タイプ",
+        options=list(video_type_options.keys()),
+        index=0 if st.session_state.video_type == "long" else 1,
+        horizontal=True,
+    )
+    new_video_type = video_type_options[selected_video_type_label]
+
+    # 動画タイプが変わったらタイトル・台本・スライドをリセット
+    if new_video_type != st.session_state.video_type:
+        st.session_state.video_type = new_video_type
+        st.session_state.titles = []
+        st.session_state.scripts = {}
+        st.session_state.slides = {}
+        st.session_state.title_page_ids = {}
+        st.session_state.generating_titles = False
+        st.rerun()
+
+    st.divider()
+
+    folders = ContentFolder.list_all(video_type=st.session_state.video_type)
     if not folders:
         st.error("content/ フォルダが見つかりません。")
         st.stop()
@@ -80,16 +103,19 @@ with st.sidebar:
 # ──────────────────────────────────────────
 # メイン：タイトル生成
 # ──────────────────────────────────────────
-st.title("YouTube コンテンツ生成")
+video_type = st.session_state.video_type
+type_label = "ショート" if video_type == "short" else "ロング"
+
+st.title(f"YouTube コンテンツ生成 — {type_label}動画")
 
 if st.session_state.generating_titles:
     with st.spinner(f"タイトルを {num_titles} 本生成中..."):
         from ui.generators import generate_titles, save_titles_to_notion
-        titles = generate_titles(selected_folder, num_titles)
+        titles = generate_titles(selected_folder, num_titles, video_type=video_type)
         st.session_state.titles = titles
 
-        # Notionに自動保存
-        page_ids = save_titles_to_notion(titles)
+        # Notionに自動保存（video_typeごとの生成物ページに保存）
+        page_ids = save_titles_to_notion(titles, video_type=video_type)
         st.session_state.title_page_ids = page_ids
         st.session_state.generating_titles = False
 
@@ -115,18 +141,18 @@ if st.session_state.titles:
             for title in selected_titles:
                 if title not in st.session_state.scripts:
                     with st.spinner(f"台本生成中: {title}"):
-                        script = generate_script(title, selected_folder)
+                        script = generate_script(title, selected_folder, video_type=video_type)
                         st.session_state.scripts[title] = script
 
                         # Notionに自動保存
-                        save_script_to_notion(title, script, st.session_state.title_page_ids)
+                        save_script_to_notion(title, script, st.session_state.title_page_ids, video_type=video_type)
 
             st.toast(f"✅ 台本 {len(selected_titles)} 件をNotionに保存しました", icon="✅")
     else:
         st.info("台本を作成したいタイトルにチェックを入れてください。")
 
 # ──────────────────────────────────────────
-# 台本一覧 + スライド作成ボタン
+# 台本一覧 + スライド作成ボタン（ロング）/ メッセージ（ショート）
 # ──────────────────────────────────────────
 if st.session_state.scripts:
     st.header("台本")
@@ -141,42 +167,47 @@ if st.session_state.scripts:
             )
             st.session_state.scripts[title] = edited_script
 
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                slide_btn = st.button(
-                    "スライド作成",
-                    key=f"slide_btn_{title}",
-                    type="secondary",
-                )
+            if video_type == "short":
+                # ショート動画はスライド作成不要
+                st.info("ショート動画はスライド作成不要です。")
+            else:
+                # ロング動画はスライド作成ボタンを表示
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    slide_btn = st.button(
+                        "スライド作成",
+                        key=f"slide_btn_{title}",
+                        type="secondary",
+                    )
 
-            if slide_btn:
-                with st.spinner(f"スライド生成中（約8分）... {title}"):
-                    from ui.generators import generate_slides, save_slides_to_notion
-                    slides = generate_slides(edited_script, title, folder=selected_folder)
-                    st.session_state.slides[title] = slides
+                if slide_btn:
+                    with st.spinner(f"スライド生成中（約8分）... {title}"):
+                        from ui.generators import generate_slides, save_slides_to_notion
+                        slides = generate_slides(edited_script, title, folder=selected_folder)
+                        st.session_state.slides[title] = slides
 
-                    # Notionに自動保存
-                    save_slides_to_notion(title, slides, st.session_state.title_page_ids)
+                        # Notionに自動保存
+                        save_slides_to_notion(title, slides, st.session_state.title_page_ids, video_type=video_type)
 
-                st.toast(f"✅ スライドをNotionに保存しました", icon="✅")
+                    st.toast(f"✅ スライドをNotionに保存しました", icon="✅")
 
-            # スライドプレビュー
-            if title in st.session_state.slides:
-                slides = st.session_state.slides[title]
-                st.subheader(f"スライドプレビュー（{len(slides)}枚）")
-                cols = st.columns(4)
-                for i, slide in enumerate(slides):
-                    png_path = slide.get("png_path", "")
-                    if Path(png_path).exists():
-                        with cols[i % 4]:
-                            st.image(
-                                png_path,
-                                caption=f"{slide['slide_num']}. {slide['title']}",
-                                use_container_width=True,
-                            )
+                # スライドプレビュー
+                if title in st.session_state.slides:
+                    slides = st.session_state.slides[title]
+                    st.subheader(f"スライドプレビュー（{len(slides)}枚）")
+                    cols = st.columns(4)
+                    for i, slide in enumerate(slides):
+                        png_path = slide.get("png_path", "")
+                        if Path(png_path).exists():
+                            with cols[i % 4]:
+                                st.image(
+                                    png_path,
+                                    caption=f"{slide['slide_num']}. {slide['title']}",
+                                    use_container_width=True,
+                                )
 
 # ──────────────────────────────────────────
 # 初期メッセージ
 # ──────────────────────────────────────────
 if not st.session_state.titles and not st.session_state.generating_titles:
-    st.info("← 左のサイドバーでフォルダとタイトル数を選択して「タイトル生成」を押してください。")
+    st.info("← 左のサイドバーで動画タイプ・フォルダとタイトル数を選択して「タイトル生成」を押してください。")
