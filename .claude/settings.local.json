@@ -7,7 +7,12 @@
       "Skill(update-config)",
       "Bash(jq:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(.venv/bin/python scripts/setup_long_short_notion.py)",
+      "Bash(.venv/bin/python -c \"\nfrom config.settings import get_settings\ns = get_settings\\(\\)\nprint\\('notion_renkau_long_page_id:', s.notion_renkau_long_page_id\\)\nprint\\('notion_renkau_short_page_id:', s.notion_renkau_short_page_id\\)\n\")",
+      "Bash(.venv/bin/python -c \"\nfrom ui.content_folder import ContentFolder\nfolders_short = ContentFolder.list_all\\('short'\\)\nprint\\('Short folders:', [f.display_name for f in folders_short]\\)\nif folders_short:\n    print\\('Keywords:', folders_short[0].keywords\\)\n    print\\('Context length:', len\\(folders_short[0].get_context\\(\\)\\)\\)\n\")",
+      "Bash(.venv/bin/python -c \"\nfrom ui.content_folder import ContentFolder\nfolders_long = ContentFolder.list_all\\(video_type='long'\\)\nfolders_short = ContentFolder.list_all\\(video_type='short'\\)\nprint\\('Long folders:', [f.display_name for f in folders_long]\\)\nprint\\('Short folders:', [f.display_name for f in folders_short]\\)\n\")"
     ]
   },
   "hooks": {
