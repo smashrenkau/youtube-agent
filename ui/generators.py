@@ -165,7 +165,7 @@ def generate_titles(
 
     reference_videos: list[dict] = []
     youtube_results = "（YouTube検索結果なし）"
-    if settings.youtube_data_api_key and video_type == "long":
+    if settings.youtube_data_api_key:
         try:
             searcher = YouTubeSearcher(settings.youtube_data_api_key)
             videos = searcher.search_top_videos(folder.keywords[:3], max_per_keyword=3)
