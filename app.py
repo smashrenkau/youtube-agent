@@ -139,12 +139,14 @@ if st.session_state.titles:
         with col_check:
             checked = st.checkbox(title, key=f"title_check_{i}")
         with col_btn:
-            if ref_videos:
-                with st.popover("参照動画"):
+            with st.popover("参照動画"):
+                if ref_videos:
                     st.markdown("**参照した高再生数YouTube動画**")
                     for v in ref_videos:
                         view = f"{v['view_count']:,}" if isinstance(v.get("view_count"), int) else "-"
                         st.markdown(f"- [{v['title']}]({v['url']})  \n  {v['channel']} / {view}回再生")
+                else:
+                    st.markdown("参照動画なし（YouTube APIキー未設定または検索結果なし）")
         if checked:
             selected_titles.append(title)
 
