@@ -24,6 +24,7 @@ def _init_state() -> None:
         "scripts": {},          # title -> script str
         "slides": {},           # title -> list[dict]
         "title_page_ids": {},   # title -> Notion page_id
+        "reference_videos": [], # list[{title, url, view_count, channel}]
         "generating_titles": False,
     }
     for k, v in defaults.items():
@@ -55,6 +56,7 @@ with st.sidebar:
         st.session_state.scripts = {}
         st.session_state.slides = {}
         st.session_state.title_page_ids = {}
+        st.session_state.reference_videos = []
         st.session_state.generating_titles = False
         st.rerun()
 
@@ -79,6 +81,7 @@ with st.sidebar:
         st.session_state.scripts = {}
         st.session_state.slides = {}
         st.session_state.title_page_ids = {}
+        st.session_state.reference_videos = []
         st.session_state.generating_titles = True
 
     st.divider()
@@ -111,11 +114,12 @@ st.title(f"YouTube コンテンツ生成 — {type_label}動画")
 if st.session_state.generating_titles:
     with st.spinner(f"タイトルを {num_titles} 本生成中..."):
         from ui.generators import generate_titles, save_titles_to_notion
-        titles = generate_titles(selected_folder, num_titles, video_type=video_type)
+        titles, ref_videos = generate_titles(selected_folder, num_titles, video_type=video_type)
         st.session_state.titles = titles
+        st.session_state.reference_videos = ref_videos
 
-        # Notionに自動保存（video_typeごとの生成物ページに保存）
-        page_ids = save_titles_to_notion(titles, video_type=video_type)
+        # Notionに自動保存（参照動画も一緒に保存）
+        page_ids = save_titles_to_notion(titles, video_type=video_type, reference_videos=ref_videos)
         st.session_state.title_page_ids = page_ids
         st.session_state.generating_titles = False
 
@@ -127,9 +131,20 @@ if st.session_state.generating_titles:
 if st.session_state.titles:
     st.header("タイトル候補")
 
+    ref_videos = st.session_state.reference_videos
+
     selected_titles = []
     for i, title in enumerate(st.session_state.titles):
-        checked = st.checkbox(title, key=f"title_check_{i}")
+        col_check, col_btn = st.columns([6, 1])
+        with col_check:
+            checked = st.checkbox(title, key=f"title_check_{i}")
+        with col_btn:
+            if ref_videos:
+                with st.popover("参照動画"):
+                    st.markdown("**参照した高再生数YouTube動画**")
+                    for v in ref_videos:
+                        view = f"{v['view_count']:,}" if isinstance(v.get("view_count"), int) else "-"
+                        st.markdown(f"- [{v['title']}]({v['url']})  \n  {v['channel']} / {view}回再生")
         if checked:
             selected_titles.append(title)
 

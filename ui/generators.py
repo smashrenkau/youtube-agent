@@ -148,20 +148,31 @@ def get_existing_titles(video_type: str = "long") -> list[str]:
         return []
 
 
-def generate_titles(folder: ContentFolder, num_titles: int, video_type: str = "long") -> list[str]:
-    """フォルダのコンテキストとYouTube検索結果からタイトルを生成する。"""
+def generate_titles(
+    folder: ContentFolder, num_titles: int, video_type: str = "long"
+) -> tuple[list[str], list[dict]]:
+    """フォルダのコンテキストとYouTube検索結果からタイトルを生成する。
+
+    Returns:
+        (titles, reference_videos) のタプル。
+        reference_videos は {title, url, view_count, channel} のリスト。
+    """
     from youtube.searcher import YouTubeSearcher
     from config.settings import get_settings
 
     settings = get_settings()
     context = folder.get_context()
 
-    # YouTube検索（ショートはスキップしても良いが一応実施）
+    reference_videos: list[dict] = []
     youtube_results = "（YouTube検索結果なし）"
     if settings.youtube_data_api_key and video_type == "long":
         try:
             searcher = YouTubeSearcher(settings.youtube_data_api_key)
             videos = searcher.search_top_videos(folder.keywords[:3], max_per_keyword=3)
+            reference_videos = [
+                {"title": v.title, "url": v.url, "view_count": v.view_count, "channel": v.channel}
+                for v in videos[:6]
+            ]
             youtube_results = searcher.format_for_prompt(videos, top_n=6)
         except Exception as e:
             logger.warning(f"YouTube検索失敗: {e}")
@@ -192,16 +203,22 @@ def generate_titles(folder: ContentFolder, num_titles: int, video_type: str = "l
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if match:
         data = json.loads(match.group())
-        return data.get("titles", [])
+        titles = data.get("titles", [])
+    else:
+        # フォールバック：行ごとに分割
+        lines = [line.strip().lstrip("0123456789.-） ").strip()
+                 for line in raw.splitlines() if line.strip()]
+        titles = [l for l in lines if len(l) > 5][:num_titles]
 
-    # フォールバック：行ごとに分割
-    lines = [line.strip().lstrip("0123456789.-） ").strip()
-             for line in raw.splitlines() if line.strip()]
-    return [l for l in lines if len(l) > 5][:num_titles]
+    return titles, reference_videos
 
 
-def save_titles_to_notion(titles: list[str], video_type: str = "long") -> dict[str, str]:
-    """タイトルをNotionに保存し {title: page_id} を返す。"""
+def save_titles_to_notion(
+    titles: list[str],
+    video_type: str = "long",
+    reference_videos: list[dict] | None = None,
+) -> dict[str, str]:
+    """タイトルをNotionに保存し {title: page_id} を返す。参照動画も保存する。"""
     storage = _get_storage(video_type=video_type)
     if not storage:
         return {}
@@ -210,6 +227,8 @@ def save_titles_to_notion(titles: list[str], video_type: str = "long") -> dict[s
         try:
             page_id = storage.save_title(title)
             result[title] = page_id
+            if reference_videos:
+                storage.save_reference_videos(page_id, reference_videos)
         except Exception as e:
             logger.warning(f"タイトル保存失敗 ({title}): {e}")
     return result

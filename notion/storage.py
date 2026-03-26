@@ -110,6 +110,37 @@ class NotionStorage:
         logger.info(f"台本を保存: {len(script)}文字")
 
     # ──────────────────────────────────────────
+    # 参照動画保存
+    # ──────────────────────────────────────────
+
+    def save_reference_videos(self, title_page_id: str, videos: list[dict]) -> None:
+        """参照したYouTube動画リストをタイトルページ直下に保存する。"""
+        blocks: list[dict] = [
+            {"object": "block", "type": "paragraph",
+             "paragraph": {"rich_text": [self._text("参照した高再生数YouTube動画")]}}
+        ]
+        for v in videos:
+            view = f"{v['view_count']:,}" if isinstance(v.get("view_count"), int) else "-"
+            label = f"{v['title']} ({v['channel']} / {view}回再生)"
+            blocks.append({
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {
+                    "rich_text": [{
+                        "type": "text",
+                        "text": {"content": label, "link": {"url": v["url"]}},
+                    }]
+                },
+            })
+
+        ref_page = self.client.pages.create(
+            parent={"type": "page_id", "page_id": title_page_id},
+            properties={"title": {"title": [self._text("参照動画")]}},
+            children=blocks,
+        )
+        logger.info(f"参照動画ページ作成: {len(videos)}件")
+
+    # ──────────────────────────────────────────
     # スライド保存
     # ──────────────────────────────────────────
 
