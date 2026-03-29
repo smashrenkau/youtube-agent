@@ -21,7 +21,9 @@ def _init_state() -> None:
     defaults = {
         "video_type": "long",       # "long" or "short"
         "titles": [],
-        "scripts": {},          # title -> script str
+        "scripts": {},          # title -> script str (後方互換用・未使用)
+        "scripts_slide": {},    # title -> スライド作成用台本
+        "scripts_filming": {},  # title -> 撮影用台本
         "slides": {},           # title -> list[dict]
         "title_slugs": {},      # title -> local slug
         "reference_videos": [], # list[{title, url, view_count, channel}]
@@ -156,60 +158,96 @@ if st.session_state.titles:
     st.divider()
 
     if selected_titles:
-        if st.button(f"台本生成（{len(selected_titles)}本）", type="primary"):
-            from ui.generators import generate_script, save_script
+        from ui.generators import generate_script, save_script
+
+        def _run_script_generation(types: list[str]) -> None:
             for title in selected_titles:
-                if title not in st.session_state.scripts:
-                    with st.spinner(f"台本生成中: {title}"):
-                        script = generate_script(title, selected_folder, video_type=video_type)
-                        st.session_state.scripts[title] = script
-
-                        # ローカルに自動保存
-                        save_script(title, script, st.session_state.title_slugs, selected_folder, video_type=video_type)
-
+                for stype in types:
+                    state_key = f"scripts_{stype}"
+                    if title not in st.session_state[state_key]:
+                        label = "スライド作成用" if stype == "slide" else "撮影用"
+                        with st.spinner(f"{label}台本生成中: {title}"):
+                            script = generate_script(title, selected_folder, video_type=video_type, script_type=stype)
+                            st.session_state[state_key][title] = script
+                            save_script(title, script, st.session_state.title_slugs, selected_folder, video_type=video_type, script_type=stype)
             st.toast(f"✅ 台本 {len(selected_titles)} 件を保存しました", icon="✅")
+
+        if video_type == "long":
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
+            with col_btn1:
+                if st.button(f"撮影用台本を生成（{len(selected_titles)}本）", type="primary", use_container_width=True):
+                    _run_script_generation(["filming"])
+            with col_btn2:
+                if st.button(f"スライド作成用台本を生成（{len(selected_titles)}本）", type="secondary", use_container_width=True):
+                    _run_script_generation(["slide"])
+            with col_btn3:
+                if st.button(f"両方生成（{len(selected_titles)}本）", type="secondary", use_container_width=True):
+                    _run_script_generation(["filming", "slide"])
+        else:
+            if st.button(f"台本生成（{len(selected_titles)}本）", type="primary"):
+                _run_script_generation(["filming"])
     else:
         st.info("台本を作成したいタイトルにチェックを入れてください。")
 
 # ──────────────────────────────────────────
 # 台本一覧 + スライド作成ボタン（ロング）/ メッセージ（ショート）
 # ──────────────────────────────────────────
-if st.session_state.scripts:
+all_titles_with_scripts = set(st.session_state.scripts_filming) | set(st.session_state.scripts_slide)
+if all_titles_with_scripts:
     st.header("台本")
 
-    for title, script in st.session_state.scripts.items():
+    for title in all_titles_with_scripts:
         with st.expander(f"📝 {title}", expanded=True):
-            edited_script = st.text_area(
-                "台本（編集可能）",
-                value=script,
-                height=300,
-                key=f"script_area_{title}",
-            )
-            st.session_state.scripts[title] = edited_script
 
             if video_type == "short":
-                # ショート動画はスライド作成不要
+                script = st.session_state.scripts_filming.get(title, "")
+                edited_script = st.text_area(
+                    "台本（編集可能）",
+                    value=script,
+                    height=300,
+                    key=f"script_area_{title}",
+                )
+                st.session_state.scripts_filming[title] = edited_script
                 st.info("ショート動画はスライド作成不要です。")
             else:
-                # ロング動画はスライド作成ボタンを表示
-                col1, col2 = st.columns([1, 4])
-                with col1:
-                    slide_btn = st.button(
-                        "スライド作成",
-                        key=f"slide_btn_{title}",
-                        type="secondary",
+                # 撮影用台本
+                if title in st.session_state.scripts_filming:
+                    st.subheader("撮影用台本")
+                    edited_filming = st.text_area(
+                        "撮影用台本（編集可能）",
+                        value=st.session_state.scripts_filming[title],
+                        height=300,
+                        key=f"script_filming_{title}",
                     )
+                    st.session_state.scripts_filming[title] = edited_filming
 
-                if slide_btn:
-                    with st.spinner(f"スライド生成中（約8分）... {title}"):
-                        from ui.generators import generate_slides, save_slides
-                        slides = generate_slides(edited_script, title, folder=selected_folder)
-                        st.session_state.slides[title] = slides
+                # スライド作成用台本
+                if title in st.session_state.scripts_slide:
+                    st.subheader("スライド作成用台本")
+                    edited_slide = st.text_area(
+                        "スライド作成用台本（編集可能）",
+                        value=st.session_state.scripts_slide[title],
+                        height=300,
+                        key=f"script_slide_{title}",
+                    )
+                    st.session_state.scripts_slide[title] = edited_slide
 
-                        # ローカルに自動保存
-                        save_slides(title, slides, st.session_state.title_slugs, selected_folder, video_type=video_type)
+                    # スライド作成ボタン（スライド作成用台本を使用）
+                    col1, col2 = st.columns([1, 4])
+                    with col1:
+                        slide_btn = st.button(
+                            "スライド作成",
+                            key=f"slide_btn_{title}",
+                            type="secondary",
+                        )
 
-                    st.toast(f"✅ スライドを保存しました", icon="✅")
+                    if slide_btn:
+                        with st.spinner(f"スライド生成中（約8分）... {title}"):
+                            from ui.generators import generate_slides, save_slides
+                            slides = generate_slides(edited_slide, title, folder=selected_folder)
+                            st.session_state.slides[title] = slides
+                            save_slides(title, slides, st.session_state.title_slugs, selected_folder, video_type=video_type)
+                        st.toast(f"✅ スライドを保存しました", icon="✅")
 
                 # スライドプレビュー
                 if title in st.session_state.slides:

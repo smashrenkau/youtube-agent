@@ -54,8 +54,8 @@ class LocalStorage:
         logger.info(f"タイトル保存: {title}")
         return slug
 
-    def save_script(self, slug: str, script: str) -> None:
-        path = self.base_dir / slug / "script.txt"
+    def save_script(self, slug: str, script: str, filename: str = "script.txt") -> None:
+        path = self.base_dir / slug / filename
         path.write_text(script, encoding="utf-8")
         logger.info(f"台本保存: {path}")
 
