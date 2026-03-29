@@ -2,57 +2,49 @@
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def _slugify(title: str) -> str:
-    """タイトルをファイル名に使えるスラグに変換する。"""
-    slug = re.sub(r"[^\w\s-]", "", title, flags=re.UNICODE)
-    slug = re.sub(r"\s+", "_", slug)
-    return slug[:60]
+def _to_dirname(title: str) -> str:
+    """タイトルをディレクトリ名に使える形式に変換する。
+    macOSで使えない文字（/ : \0 改行）のみ除去し、タイトルそのままに近い名前にする。
+    """
+    dirname = re.sub(r'[/:\x00\n\r]', '', title)
+    return dirname[:60].strip()
 
 
 class LocalStorage:
-    """タイトル・台本・スライドをローカルファイルに保存する。"""
+    """タイトル・台本・スライドをローカルファイルに保存する。
+
+    構造:
+        base_dir/
+            {タイトル}/
+                script_filming.txt
+                script_slide.txt
+                reference_videos.json
+                slides.json
+    """
 
     def __init__(self, base_dir: Path) -> None:
         self.base_dir = base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        self.titles_file = self.base_dir / "titles.json"
-
-    def _load_titles_data(self) -> list[dict]:
-        if not self.titles_file.exists():
-            return []
-        return json.loads(self.titles_file.read_text(encoding="utf-8"))
-
-    def _save_titles_data(self, data: list[dict]) -> None:
-        self.titles_file.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
 
     def get_existing_titles(self) -> list[str]:
-        return [entry["title"] for entry in self._load_titles_data()]
+        """保存済みタイトル一覧をディレクトリ名から取得する。"""
+        return [
+            d.name
+            for d in sorted(self.base_dir.iterdir())
+            if d.is_dir()
+        ]
 
     def save_title(self, title: str) -> str:
-        """タイトルを保存してスラグ（page_id代わり）を返す。"""
-        slug = _slugify(title)
-        (self.base_dir / slug).mkdir(parents=True, exist_ok=True)
-
-        data = self._load_titles_data()
-        if not any(e["title"] == title for e in data):
-            data.append({
-                "title": title,
-                "slug": slug,
-                "created_at": datetime.now().isoformat(),
-            })
-            self._save_titles_data(data)
-
-        logger.info(f"タイトル保存: {title}")
-        return slug
+        """タイトルディレクトリを作成してディレクトリ名を返す。"""
+        dirname = _to_dirname(title)
+        (self.base_dir / dirname).mkdir(parents=True, exist_ok=True)
+        logger.info(f"タイトル保存: {title} → {dirname}/")
+        return dirname
 
     def save_script(self, slug: str, script: str, filename: str = "script.txt") -> None:
         path = self.base_dir / slug / filename
