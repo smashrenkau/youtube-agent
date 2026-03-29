@@ -13,7 +13,6 @@ from agents.script_writer import ScriptWriterAgent
 from agents.video_generator import VideoGeneratorAgent
 from agents.youtube_uploader import YouTubeUploaderAgent
 from config.settings import get_settings
-from notion.reporter import NotionReporter
 from models.schemas import (
     PipelineRequest,
     PipelineResult,
@@ -34,13 +33,6 @@ class FullPipeline:
         self.retriever = retriever
         self.theme_agent = ThemeSelectorAgent(retriever, youtube_searcher)
         self.script_agent = ScriptWriterAgent(retriever)
-        settings = get_settings()
-        self.reporter: NotionReporter | None = None
-        if settings.notion_log_database_id:
-            self.reporter = NotionReporter(
-                api_key=settings.notion_api_key.get_secret_value(),
-                log_database_id=settings.notion_log_database_id,
-            )
         self.video_agent = VideoGeneratorAgent(retriever=retriever)
         self.upload_agent = YouTubeUploaderAgent(retriever)
 
@@ -144,20 +136,6 @@ class FullPipeline:
         if upload_result:
             state["steps"]["upload"] = upload_result.model_dump()
             self._save_state(state_path, state)
-
-        # Notionに全結果を保存
-        if self.reporter:
-            try:
-                notion_url = self.reporter.save_pipeline_result(
-                    title=selected_title,
-                    theme=theme_result,
-                    script=script_result,
-                    video=video_result,
-                    upload=upload_result,
-                )
-                console.print(f"  Notion保存: [link]{notion_url}[/link]")
-            except Exception as e:
-                logger.warning(f"Notion保存失敗: {e}")
 
         # 完了
         console.print(f"\n[bold green]✓ パイプライン完了[/bold green] (ログ: {state_path})")

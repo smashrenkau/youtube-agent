@@ -42,16 +42,13 @@ def _build_retriever(rebuild: bool = False):  # type: ignore[no-untyped-def]
     """RAGリトリーバーを初期化して返す。"""
     from config.settings import get_settings
     from rag.index_builder import IndexBuilder
-    from rag.notion_loader import NotionLoader
+    from rag.local_loader import LocalLoader
     from rag.retriever import Retriever
 
     settings = get_settings()
-    loader = NotionLoader(
-        api_key=settings.notion_api_key.get_secret_value(),
-        knowledge_page_id=settings.notion_renkau_page_id,
-    )
+    loader = LocalLoader(content_dir="content")
     builder = IndexBuilder(
-        notion_loader=loader,
+        loader=loader,
         cache_dir=settings.rag_cache_dir,
         refresh_hours=settings.rag_index_refresh_hours,
     )

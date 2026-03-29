@@ -8,23 +8,21 @@ from pathlib import Path
 from llama_index.core import Document, Settings, VectorStoreIndex
 from llama_index.core.node_parser import SentenceSplitter
 
-from rag.notion_loader import NotionLoader
-
 logger = logging.getLogger(__name__)
 
 METADATA_FILE = "index_metadata.json"
 
 
 class IndexBuilder:
-    """Notionドキュメントからベクターインデックスを構築・キャッシュ管理する。"""
+    """ローカルファイルからベクターインデックスを構築・キャッシュ管理する。"""
 
     def __init__(
         self,
-        notion_loader: NotionLoader,
+        loader,
         cache_dir: str = "rag/cache",
         refresh_hours: int = 24,
     ) -> None:
-        self.notion_loader = notion_loader
+        self.loader = loader
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.refresh_hours = refresh_hours
@@ -39,7 +37,7 @@ class IndexBuilder:
             logger.info("RAGキャッシュからインデックスをロード")
             self._index = self._load_from_cache()
         else:
-            logger.info("Notionからインデックスを新規構築")
+            logger.info("ローカルファイルからインデックスを新規構築")
             self._index = self._build_index()
             self._save_to_cache(self._index)
 
@@ -58,7 +56,7 @@ class IndexBuilder:
         return age_hours < self.refresh_hours
 
     def _build_index(self) -> VectorStoreIndex:
-        documents_data = self.notion_loader.load_documents()
+        documents_data = self.loader.load_documents()
 
         documents = [
             Document(

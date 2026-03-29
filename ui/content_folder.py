@@ -17,14 +17,22 @@ class ContentFolder:
         description: str = "",
         keywords: list[str] | None = None,
         context: str = "",
+        folder_dir: Path | None = None,
     ) -> None:
         self.display_name = display_name
         self.description = description
         self.keywords = keywords or []
         self._context = context
+        self._folder_dir = folder_dir  # content/{フォルダ名}/ のパス
 
     def get_context(self) -> str:
         return self._context
+
+    def get_generated_dir(self, video_type: str) -> Path:
+        """生成物の保存先ディレクトリを返す。"""
+        if self._folder_dir:
+            return self._folder_dir / video_type / "生成物"
+        return Path("storage/generated") / video_type
 
     # ──────────────────────────────────────────
     # ファクトリメソッド
@@ -32,33 +40,11 @@ class ContentFolder:
 
     @classmethod
     def list_all(cls, video_type: str = "long") -> list["ContentFolder"]:
-        """Notionが設定されていればNotionから、なければローカルから読み込む。
+        """ローカルの content/ ディレクトリからフォルダを読み込む。
 
         Args:
             video_type: "long" または "short"
         """
-        from config.settings import get_settings
-        settings = get_settings()
-
-        # video_typeに対応するページIDを選択
-        if video_type == "short":
-            notion_page_id = settings.notion_renkau_short_page_id
-        else:
-            notion_page_id = settings.notion_renkau_long_page_id
-
-        # long/short専用ページIDが設定されていればそちらを使う、なければ旧来のcontent_page_idへフォールバック
-        page_id = notion_page_id or settings.notion_content_page_id
-
-        if page_id:
-            try:
-                return cls._list_from_notion(
-                    api_key=settings.notion_api_key.get_secret_value(),
-                    parent_page_id=page_id,
-                    video_type=video_type,
-                )
-            except Exception as e:
-                logger.warning(f"Notion読み込み失敗、ローカルにフォールバック: {e}")
-
         return cls._list_from_local(video_type=video_type)
 
     @classmethod
@@ -166,6 +152,7 @@ class ContentFolder:
                 description=config.get("description", ""),
                 keywords=config.get("keywords", []),
                 context=context,
+                folder_dir=d,
             ))
 
         return folders

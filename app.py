@@ -23,7 +23,7 @@ def _init_state() -> None:
         "titles": [],
         "scripts": {},          # title -> script str
         "slides": {},           # title -> list[dict]
-        "title_page_ids": {},   # title -> Notion page_id
+        "title_slugs": {},      # title -> local slug
         "reference_videos": [], # list[{title, url, view_count, channel}]
         "generating_titles": False,
     }
@@ -55,7 +55,7 @@ with st.sidebar:
         st.session_state.titles = []
         st.session_state.scripts = {}
         st.session_state.slides = {}
-        st.session_state.title_page_ids = {}
+        st.session_state.title_slugs = {}
         st.session_state.reference_videos = []
         st.session_state.generating_titles = False
         st.rerun()
@@ -80,27 +80,30 @@ with st.sidebar:
         st.session_state.titles = []
         st.session_state.scripts = {}
         st.session_state.slides = {}
-        st.session_state.title_page_ids = {}
+        st.session_state.title_slugs = {}
         st.session_state.reference_videos = []
         st.session_state.generating_titles = True
 
     st.divider()
     st.markdown("**📁 フォルダを追加するには**")
     st.markdown(
-        "Notionの「YouTube コンテンツ管理」ページに\n"
-        "新しい子ページを追加してください。\n\n"
-        "**手順：**\n"
-        "1. 下のリンクを開く\n"
-        "2. ページ内で `+` を押して子ページを追加\n"
-        "3. ページ名 = フォルダ名になります\n"
-        "4. 子ページ内に「チャンネル戦略」「マーケティング軸・刺さるメッセージ」"
-        "「YouTube検索キーワードリスト」「台本スタイルガイド」「品質基準」の"
-        "5ページを作成してください"
-    )
-    st.link_button(
-        "Notionで管理する →",
-        "https://notion.so/32eb35e4187281809a92d780769614fc",
-        use_container_width=True,
+        "コンテンツの設定はすべて `content/` フォルダ内の"
+        "テキストファイルで管理しています。\n\n"
+        "**手順**\n"
+        "1. `content/renkau/` フォルダをまるごとコピーして"
+        "新しい名前に変更\n"
+        "2. `long/config.json` の `display_name`（表示名）と"
+        "`keywords`（検索キーワード）を書き換える\n"
+        "3. `long/` 内の各MDファイルをそのブランド・商材の"
+        "内容に書き換える\n"
+        "4. ショート動画も使う場合は `short/` も同様に編集\n"
+        "5. このページを再読み込みすると上の選択肢に追加される\n\n"
+        "各MDファイルの役割：\n"
+        "- **チャンネル戦略.md** — ターゲット・方針\n"
+        "- **訴求メッセージ.md** — 刺さるキーワード・訴求軸\n"
+        "- **マーケティング戦略.md** — 集客・差別化の方針\n"
+        "- **台本スタイルガイド.md** — 話し方・構成のルール\n"
+        "- **品質基準.md** — 台本のチェック基準"
     )
 
 # ──────────────────────────────────────────
@@ -113,17 +116,17 @@ st.title(f"YouTube コンテンツ生成 — {type_label}動画")
 
 if st.session_state.generating_titles:
     with st.spinner(f"タイトルを {num_titles} 本生成中..."):
-        from ui.generators import generate_titles, save_titles_to_notion
+        from ui.generators import generate_titles, save_titles
         titles, ref_videos = generate_titles(selected_folder, num_titles, video_type=video_type)
         st.session_state.titles = titles
         st.session_state.reference_videos = ref_videos
 
-        # Notionに自動保存（参照動画も一緒に保存）
-        page_ids = save_titles_to_notion(titles, video_type=video_type, reference_videos=ref_videos)
-        st.session_state.title_page_ids = page_ids
+        # ローカルに自動保存（参照動画も一緒に保存）
+        slugs = save_titles(titles, selected_folder, video_type=video_type, reference_videos=ref_videos)
+        st.session_state.title_slugs = slugs
         st.session_state.generating_titles = False
 
-    st.toast(f"✅ タイトル {len(titles)} 件をNotionに保存しました", icon="✅")
+    st.toast(f"✅ タイトル {len(titles)} 件を保存しました", icon="✅")
 
 # ──────────────────────────────────────────
 # タイトル一覧 + チェックボックス
@@ -154,17 +157,17 @@ if st.session_state.titles:
 
     if selected_titles:
         if st.button(f"台本生成（{len(selected_titles)}本）", type="primary"):
-            from ui.generators import generate_script, save_script_to_notion
+            from ui.generators import generate_script, save_script
             for title in selected_titles:
                 if title not in st.session_state.scripts:
                     with st.spinner(f"台本生成中: {title}"):
                         script = generate_script(title, selected_folder, video_type=video_type)
                         st.session_state.scripts[title] = script
 
-                        # Notionに自動保存
-                        save_script_to_notion(title, script, st.session_state.title_page_ids, video_type=video_type)
+                        # ローカルに自動保存
+                        save_script(title, script, st.session_state.title_slugs, selected_folder, video_type=video_type)
 
-            st.toast(f"✅ 台本 {len(selected_titles)} 件をNotionに保存しました", icon="✅")
+            st.toast(f"✅ 台本 {len(selected_titles)} 件を保存しました", icon="✅")
     else:
         st.info("台本を作成したいタイトルにチェックを入れてください。")
 
@@ -199,14 +202,14 @@ if st.session_state.scripts:
 
                 if slide_btn:
                     with st.spinner(f"スライド生成中（約8分）... {title}"):
-                        from ui.generators import generate_slides, save_slides_to_notion
+                        from ui.generators import generate_slides, save_slides
                         slides = generate_slides(edited_script, title, folder=selected_folder)
                         st.session_state.slides[title] = slides
 
-                        # Notionに自動保存
-                        save_slides_to_notion(title, slides, st.session_state.title_page_ids, video_type=video_type)
+                        # ローカルに自動保存
+                        save_slides(title, slides, st.session_state.title_slugs, selected_folder, video_type=video_type)
 
-                    st.toast(f"✅ スライドをNotionに保存しました", icon="✅")
+                    st.toast(f"✅ スライドを保存しました", icon="✅")
 
                 # スライドプレビュー
                 if title in st.session_state.slides:

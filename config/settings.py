@@ -16,9 +16,9 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr
     anthropic_model: str = "claude-sonnet-4-6"
 
-    # Notion
-    notion_api_key: SecretStr
-    notion_database_id: str
+    # Notion（未使用・互換性のため残存）
+    notion_api_key: SecretStr = SecretStr("")
+    notion_database_id: str = ""
     notion_log_database_id: str = ""
     notion_content_page_id: str = ""   # コンテンツフォルダ管理ページ
     notion_renkau_page_id: str = ""    # Renkauフォルダページ（生成物保存先）

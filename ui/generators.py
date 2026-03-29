@@ -115,34 +115,16 @@ class _SimpleAgent(BaseAgent):
         raise NotImplementedError
 
 
-def _get_storage(video_type: str = "long"):
-    """NotionStorageインスタンスを返す。video_typeに応じてlong/short動画ページを使う。"""
-    from config.settings import get_settings
-    from notion.storage import NotionStorage
-    settings = get_settings()
-    if not settings.notion_renkau_page_id:
-        return None
-
-    # video_typeに対応する親ページIDを選択
-    if video_type == "short":
-        parent_page_id = settings.notion_renkau_short_page_id
-    else:
-        parent_page_id = settings.notion_renkau_long_page_id
-
-    return NotionStorage(
-        api_key=settings.notion_api_key.get_secret_value(),
-        renkau_page_id=settings.notion_renkau_page_id,
-        parent_page_id=parent_page_id,
-    )
+def _get_storage(folder: ContentFolder, video_type: str = "long"):
+    """LocalStorageインスタンスを返す。保存先はフォルダ内の「生成物」ディレクトリ。"""
+    from storage.local_storage import LocalStorage
+    return LocalStorage(base_dir=folder.get_generated_dir(video_type))
 
 
-def get_existing_titles(video_type: str = "long") -> list[str]:
-    """Notionに保存済みのタイトル一覧を返す（video_typeごとに独立管理）。"""
-    storage = _get_storage(video_type=video_type)
-    if not storage:
-        return []
+def get_existing_titles(folder: ContentFolder, video_type: str = "long") -> list[str]:
+    """ローカルに保存済みのタイトル一覧を返す（フォルダ・video_typeごとに独立管理）。"""
     try:
-        return storage.get_existing_titles()
+        return _get_storage(folder, video_type).get_existing_titles()
     except Exception as e:
         logger.warning(f"既存タイトル取得失敗: {e}")
         return []
@@ -177,8 +159,8 @@ def generate_titles(
         except Exception as e:
             logger.warning(f"YouTube検索失敗: {e}")
 
-    # 既存タイトルを取得（重複防止・video_typeごと独立）
-    existing = get_existing_titles(video_type=video_type)
+    # 既存タイトルを取得（重複防止・フォルダ・video_typeごと独立）
+    existing = get_existing_titles(folder, video_type=video_type)
     existing_titles_str = "\n".join(f"- {t}" for t in existing) if existing else "（なし）"
 
     # video_typeに応じてプロンプトを切り替え
@@ -213,22 +195,21 @@ def generate_titles(
     return titles, reference_videos
 
 
-def save_titles_to_notion(
+def save_titles(
     titles: list[str],
+    folder: ContentFolder,
     video_type: str = "long",
     reference_videos: list[dict] | None = None,
 ) -> dict[str, str]:
-    """タイトルをNotionに保存し {title: page_id} を返す。参照動画も保存する。"""
-    storage = _get_storage(video_type=video_type)
-    if not storage:
-        return {}
+    """タイトルをローカルに保存し {title: slug} を返す。参照動画も保存する。"""
+    storage = _get_storage(folder, video_type)
     result = {}
     for title in titles:
         try:
-            page_id = storage.save_title(title)
-            result[title] = page_id
+            slug = storage.save_title(title)
+            result[title] = slug
             if reference_videos:
-                storage.save_reference_videos(page_id, reference_videos)
+                storage.save_reference_videos(slug, reference_videos)
         except Exception as e:
             logger.warning(f"タイトル保存失敗 ({title}): {e}")
     return result
@@ -253,16 +234,13 @@ def generate_script(title: str, folder: ContentFolder, video_type: str = "long")
     return agent._call_claude(prompt, max_tokens=max_tokens)
 
 
-def save_script_to_notion(title: str, script: str, title_page_ids: dict[str, str], video_type: str = "long") -> None:
-    """台本をNotionのタイトルページ下に保存する。"""
-    storage = _get_storage(video_type=video_type)
-    if not storage:
-        return
-    page_id = title_page_ids.get(title)
-    if not page_id:
+def save_script(title: str, script: str, title_slugs: dict[str, str], folder: ContentFolder, video_type: str = "long") -> None:
+    """台本をローカルに保存する。"""
+    slug = title_slugs.get(title)
+    if not slug:
         return
     try:
-        storage.save_script(page_id, script)
+        _get_storage(folder, video_type).save_script(slug, script)
     except Exception as e:
         logger.warning(f"台本保存失敗 ({title}): {e}")
 
@@ -288,15 +266,12 @@ def generate_slides(script: str, title: str, folder: ContentFolder | None = None
     return agent.generate_slides(script, output_dir, slide_spec=slide_spec)
 
 
-def save_slides_to_notion(title: str, slides: list[dict], title_page_ids: dict[str, str], video_type: str = "long") -> None:
-    """スライド情報をNotionのタイトルページ下に保存する。"""
-    storage = _get_storage(video_type=video_type)
-    if not storage:
-        return
-    page_id = title_page_ids.get(title)
-    if not page_id:
+def save_slides(title: str, slides: list[dict], title_slugs: dict[str, str], folder: ContentFolder, video_type: str = "long") -> None:
+    """スライド情報をローカルに保存する。"""
+    slug = title_slugs.get(title)
+    if not slug:
         return
     try:
-        storage.save_slides(page_id, slides)
+        _get_storage(folder, video_type).save_slides(slug, slides)
     except Exception as e:
         logger.warning(f"スライド保存失敗 ({title}): {e}")
